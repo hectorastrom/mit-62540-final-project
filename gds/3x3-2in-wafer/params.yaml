@@ -1,0 +1,19 @@
+# lengths in um
+wafer: 50800.0
+array: 16933.333333333332
+n_arrays: 9
+n_rows: 2
+n_elec: 12
+d_small: 35.0
+d_large: 500.0
+elec_pitch: 2000.0
+row_space: 1000.0
+elec_y0: 3000.0
+trace_w_small: 10.0
+trace_w_large: 50.0
+fan_y0: 6000.0
+fan_step: 200.0
+margin: 500.0
+pad_gap: 600.0
+pad_h: 4000.0
+min_space: 10.0

@@ -1,8 +1,12 @@
 """Four 2"x2" uECoG test arrays on a 4"x4" Si wafer. Lengths in um.
 Layer 1 = metal (fabricated), layer 10 = annotations (not fabricated).
 Writes two GDS files: <name>_annotated.gds (metal + annotations) and <name>_clean.gds (metal only).
+Usage: python array-v1.py [--save NAME]
+  no --save overwrites the GDS files next to this script
+  --save NAME writes yamla and GDS files into folder NAME
 """
 
+import argparse
 import os
 import numpy as np
 import gdspy
@@ -11,22 +15,22 @@ METAL, ANNOTATIONS = 1, 10  # layer levels
 IN = 25400.0
 
 # ---------- parameters ----------
-WAFER = 4 * IN  # wafer edge
-ARRAY = 2 * IN  # array edge
-N_ARRAYS = 4  # square grid, evenly spaced
+WAFER = 2 * IN  # wafer edge
+ARRAY = 2/3 * IN  # array edge
+N_ARRAYS = 9  # square grid, evenly spaced
 N_ROWS = 2  # electrode rows per array
-N_ELEC = 20  # per array; half small / half large in every row
+N_ELEC = 12  # per array; half small / half large in every row
 D_SMALL = 35.0  # small electrode diameter
 D_LARGE = 500.0  # large electrode diameter
-ELEC_PITCH = 4000.0  # same-row spacing; rows are staggered by ELEC_PITCH / N_ROWS
+ELEC_PITCH = 2000.0  # same-row spacing; rows are staggered by ELEC_PITCH / N_ROWS
 ROW_SPACE = 1000.0  # row-to-row spacing
 ELEC_Y0 = 3000.0  # bottom row height above array bottom edge
 TRACE_W_SMALL = 10.0  # trace width to small electrodes (keep thin: low parasitic C)
 TRACE_W_LARGE = 50.0  # trace width to large electrodes (keep wide: low series R)
 FAN_Y0 = 6000.0  # height of the lowest fan-out jog
 FAN_STEP = 200.0  # height difference between neighbouring jogs
-MARGIN = 1000.0  # pads/array edge clearance
-PAD_GAP = 500.0  # gap between neighbouring pads
+MARGIN = 500.0  # pads/array edge clearance
+PAD_GAP = 600.0  # gap between neighbouring pads
 PAD_H = 4000.0  # pad height
 MIN_SPACE = 10.0  # minimum metal-metal gap
 
@@ -122,10 +126,37 @@ def build(annotate, path):
     print("wrote", path)
 
 
+def params():
+    """Design parameters (the UPPERCASE constants in the parameters section)."""
+    names = ["WAFER", "ARRAY", "N_ARRAYS", "N_ROWS", "N_ELEC", "D_SMALL", "D_LARGE",
+             "ELEC_PITCH", "ROW_SPACE", "ELEC_Y0", "TRACE_W_SMALL", "TRACE_W_LARGE",
+             "FAN_Y0", "FAN_STEP", "MARGIN", "PAD_GAP", "PAD_H", "MIN_SPACE"]
+    return {k: globals()[k] for k in names}
+
+
+def write_yaml(path):
+    with open(path, "w") as f:
+        f.write("# lengths in um\n")
+        for k, v in params().items():
+            f.write(f"{k.lower()}: {v}\n")
+    print("wrote", path)
+
+
 def main():
-    base = os.path.splitext(os.path.abspath(__file__))[0]
-    build(True, base + "_annotated.gds")
-    build(False, base + "_clean.gds")
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--save", metavar="NAME",
+                    help="save params.yaml and both GDS files into folder NAME")
+    args = ap.parse_args()
+    here = os.path.dirname(os.path.abspath(__file__))
+    stem = os.path.splitext(os.path.basename(__file__))[0]
+    if args.save:
+        out = os.path.join(here, args.save)
+        os.makedirs(out, exist_ok=True)
+        write_yaml(os.path.join(out, "params.yaml"))
+    else:
+        out = here
+    build(True, os.path.join(out, stem + "_annotated.gds"))
+    build(False, os.path.join(out, stem + "_clean.gds"))
 
 
 if __name__ == "__main__":
