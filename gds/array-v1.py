@@ -1,4 +1,4 @@
-"""Four 2"x2" uECoG test arrays on a 4"x4" Si wafer. Lengths in um.
+"""Square grid of uECoG test arrays inside the square inscribed in a round Si wafer. Lengths in um.
 Layer 1 = metal (fabricated), layer 10 = annotations (not fabricated).
 Writes two GDS files: <name>_annotated.gds (metal + annotations) and <name>_clean.gds (metal only).
 Usage: python array-v1.py [--save NAME]
@@ -15,9 +15,14 @@ METAL, ANNOTATIONS = 1, 10  # layer levels
 IN = 25400.0
 
 # ---------- parameters ----------
-WAFER = 2 * IN  # wafer edge
-ARRAY = 2/3 * IN  # array edge
-N_ARRAYS = 9  # square grid, evenly spaced
+WAFER_DIAM_IN = 4  # wafer diameter in inches
+WAFER = WAFER_DIAM_IN * IN  # wafer diameter
+SQUARE = WAFER / np.sqrt(2)  # edge of the inscribed square = usable area for the array grid
+GRID_ROWS, GRID_COLS = 4, 4  # array grid arrangement (rows x columns)
+GRID_GAP = 200.0  # gap between neighbouring arrays and to the inscribed square's edge
+_N = max(GRID_ROWS, GRID_COLS)
+ARRAY = (SQUARE - (_N + 1) * GRID_GAP) / _N  # array edge (derived): square space divided into the grid
+N_ARRAYS = GRID_ROWS * GRID_COLS
 N_ROWS = 2  # electrode rows per array
 N_ELEC = 12  # per array; half small / half large in every row
 D_SMALL = 35.0  # small electrode diameter
@@ -33,6 +38,7 @@ MARGIN = 500.0  # pads/array edge clearance
 PAD_GAP = 600.0  # gap between neighbouring pads
 PAD_H = 4000.0  # pad height
 MIN_SPACE = 10.0  # minimum metal-metal gap
+OUTLINE_W = 100.0  # annotation outline line width
 
 
 def make_array(lib, annotate):
@@ -104,16 +110,34 @@ def build(annotate, path):
     lib = gdspy.GdsLibrary(unit=1e-6, precision=1e-9)
     arr = make_array(lib, annotate)
     top = lib.new_cell("WAFER")
+    sq0 = (WAFER - SQUARE) / 2  # inscribed square corner (wafer centred at WAFER/2)
     if annotate:
-        top.add(gdspy.Rectangle((0, 0), (WAFER, WAFER), layer=ANNOTATIONS))
+        c = WAFER / 2
+        top.add(  # wafer outline
+            gdspy.Round(
+                (c, c), WAFER / 2, inner_radius=WAFER / 2 - OUTLINE_W,
+                number_of_points=720, layer=ANNOTATIONS,
+            )
+        )
+        top.add(  # inscribed square outline
+            gdspy.boolean(
+                gdspy.Rectangle((sq0, sq0), (sq0 + SQUARE, sq0 + SQUARE)),
+                gdspy.Rectangle(
+                    (sq0 + OUTLINE_W, sq0 + OUTLINE_W),
+                    (sq0 + SQUARE - OUTLINE_W, sq0 + SQUARE - OUTLINE_W),
+                ),
+                "not",
+                layer=ANNOTATIONS,
+            )
+        )
 
-    n = int(round(np.sqrt(N_ARRAYS)))
-    gap = (WAFER - n * ARRAY) / (
-        n + 1
-    )  # equal gaps between arrays and to the wafer edge
+    assert ARRAY > 0, "arrays do not fit in inscribed square"
+    # grid is centred in the square if it is not square itself
+    gx = sq0 + GRID_GAP + (_N - GRID_COLS) * (ARRAY + GRID_GAP) / 2
+    gy = sq0 + GRID_GAP + (_N - GRID_ROWS) * (ARRAY + GRID_GAP) / 2
     for j in range(N_ARRAYS):
-        r, c = divmod(j, n)
-        o = (gap + c * (ARRAY + gap), gap + r * (ARRAY + gap))
+        r, c = divmod(j, GRID_COLS)
+        o = (gx + c * (ARRAY + GRID_GAP), gy + r * (ARRAY + GRID_GAP))
         top.add(gdspy.CellReference(arr, o))
         if annotate:
             top.add(
@@ -128,7 +152,7 @@ def build(annotate, path):
 
 def params():
     """Design parameters (the UPPERCASE constants in the parameters section)."""
-    names = ["WAFER", "ARRAY", "N_ARRAYS", "N_ROWS", "N_ELEC", "D_SMALL", "D_LARGE",
+    names = ["WAFER_DIAM_IN", "SQUARE", "ARRAY", "GRID_ROWS", "GRID_COLS", "GRID_GAP", "N_ROWS", "N_ELEC", "D_SMALL", "D_LARGE",
              "ELEC_PITCH", "ROW_SPACE", "ELEC_Y0", "TRACE_W_SMALL", "TRACE_W_LARGE",
              "FAN_Y0", "FAN_STEP", "MARGIN", "PAD_GAP", "PAD_H", "MIN_SPACE"]
     return {k: globals()[k] for k in names}
