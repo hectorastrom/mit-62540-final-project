@@ -1,5 +1,5 @@
 """Square grid of uECoG test arrays inside the square inscribed in a round Si wafer. Lengths in um.
-Layer 1 = metal (fabricated), layer 10 = annotations (not fabricated).
+Layer 1 = metal (fabricated, always solid polygons), layer 10 = annotations, layer 11 = solid region fills (not fabricated).
 Writes two GDS files: <name>_annotated.gds (metal + annotations) and <name>_clean.gds (metal only).
 Usage: python array-v1.py [--save NAME]
 Design rules always run first: error on trace/feature width < MIN_FEATURE, warn on pads below MIN_PAD.
@@ -12,7 +12,8 @@ import os
 import numpy as np
 import gdspy
 
-METAL, ANNOTATIONS = 1, 10  # layer levels
+METAL, ANNOTATIONS, REGIONS = 1, 10, 11  # layer levels
+FILL_REGIONS = True  # annotated file only: also draw wafer/square as solid fills on REGIONS layer (outlines kept)
 IN = 25400.0
 
 # ---------- parameters ----------
@@ -114,6 +115,10 @@ def build(annotate, path):
     arr = make_array(lib, annotate)
     top = lib.new_cell("WAFER")
     sq0 = (WAFER - SQUARE) / 2  # inscribed square corner (wafer centred at WAFER/2)
+    if annotate and FILL_REGIONS:
+        c = WAFER / 2
+        top.add(gdspy.Round((c, c), WAFER / 2, number_of_points=720, layer=REGIONS))
+        top.add(gdspy.Rectangle((sq0, sq0), (sq0 + SQUARE, sq0 + SQUARE), layer=REGIONS))
     if annotate:
         c = WAFER / 2
         top.add(  # wafer outline
