@@ -2,6 +2,7 @@
 Layer 1 = metal (fabricated), layer 10 = annotations (not fabricated).
 Writes two GDS files: <name>_annotated.gds (metal + annotations) and <name>_clean.gds (metal only).
 Usage: python array-v1.py [--save NAME]
+Design rules always run first: error on trace/feature width < MIN_FEATURE, warn on pads below MIN_PAD.
   no --save overwrites the GDS files next to this script
   --save NAME writes yamla and GDS files into folder NAME
 """
@@ -24,12 +25,12 @@ _N = max(GRID_ROWS, GRID_COLS)
 ARRAY = (SQUARE - (_N + 1) * GRID_GAP) / _N  # array edge (derived): square space divided into the grid
 N_ARRAYS = GRID_ROWS * GRID_COLS
 N_ROWS = 2  # electrode rows per array
-N_ELEC = 12  # per array; half small / half large in every row
+N_ELEC = 8  # per array; half small / half large in every row
 D_SMALL = 35.0  # small electrode diameter
 D_LARGE = 500.0  # large electrode diameter
-ELEC_PITCH = 2000.0  # same-row spacing; rows are staggered by ELEC_PITCH / N_ROWS
-ROW_SPACE = 1000.0  # row-to-row spacing
-ELEC_Y0 = 3000.0  # bottom row height above array bottom edge
+ELEC_PITCH = 3000.0  # same-row spacing; rows are staggered by ELEC_PITCH / N_ROWS
+ROW_SPACE = 3000.0  # row-to-row spacing
+ELEC_Y0 = 2000.0  # bottom row height above array bottom edge
 TRACE_W_SMALL = 10.0  # trace width to small electrodes (keep thin: low parasitic C)
 TRACE_W_LARGE = 50.0  # trace width to large electrodes (keep wide: low series R)
 FAN_Y0 = 6000.0  # height of the lowest fan-out jog
@@ -38,6 +39,8 @@ MARGIN = 500.0  # pads/array edge clearance
 PAD_GAP = 600.0  # gap between neighbouring pads
 PAD_H = 4000.0  # pad height
 MIN_SPACE = 10.0  # minimum metal-metal gap
+MIN_FEATURE = 4.0  # error if any trace width / electrode diameter is below this
+MIN_PAD = (1000.0, 1000.0)  # warn if pad (w, h) is below this
 OUTLINE_W = 100.0  # annotation outline line width
 
 
@@ -150,6 +153,26 @@ def build(annotate, path):
     print("wrote", path)
 
 
+def check_rules():
+    """Design-rule check: raise on features < MIN_FEATURE, warn on small pads."""
+    feats = {"TRACE_W_SMALL": TRACE_W_SMALL, "TRACE_W_LARGE": TRACE_W_LARGE,
+             "D_SMALL": D_SMALL, "D_LARGE": D_LARGE}
+    bad = {k: v for k, v in feats.items() if v < MIN_FEATURE}
+    if bad:
+        raise SystemExit(
+            "ERROR: feature width below %.1f um: %s"
+            % (MIN_FEATURE, ", ".join(f"{k}={v:g} um" for k, v in bad.items()))
+        )
+    pad_w = (ARRAY - 2 * MARGIN) / N_ELEC - PAD_GAP
+    if pad_w < MIN_PAD[0] or PAD_H < MIN_PAD[1]:
+        print(
+            f"WARNING: pad {pad_w:.0f} x {PAD_H:.0f} um is below "
+            f"{MIN_PAD[0]:.0f} x {MIN_PAD[1]:.0f} um"
+        )
+    else:
+        print("check passed")
+
+
 def params():
     """Design parameters (the UPPERCASE constants in the parameters section)."""
     names = ["WAFER_DIAM_IN", "SQUARE", "ARRAY", "GRID_ROWS", "GRID_COLS", "GRID_GAP", "N_ROWS", "N_ELEC", "D_SMALL", "D_LARGE",
@@ -171,6 +194,7 @@ def main():
     ap.add_argument("--save", metavar="NAME",
                     help="save params.yaml and both GDS files into folder NAME")
     args = ap.parse_args()
+    check_rules()
     here = os.path.dirname(os.path.abspath(__file__))
     stem = os.path.splitext(os.path.basename(__file__))[0]
     if args.save:

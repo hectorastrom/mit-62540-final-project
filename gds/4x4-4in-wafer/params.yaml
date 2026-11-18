@@ -6,12 +6,12 @@ grid_rows: 4
 grid_cols: 4
 grid_gap: 200.0
 n_rows: 2
-n_elec: 12
+n_elec: 8
 d_small: 35.0
 d_large: 500.0
-elec_pitch: 2000.0
-row_space: 1000.0
-elec_y0: 3000.0
+elec_pitch: 3000.0
+row_space: 3000.0
+elec_y0: 2000.0
 trace_w_small: 10.0
 trace_w_large: 50.0
 fan_y0: 6000.0
