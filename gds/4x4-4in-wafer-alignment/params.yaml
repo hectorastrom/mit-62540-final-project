@@ -1,0 +1,26 @@
+# lengths in um
+wafer_diam_in: 4
+square: 71842.04896855322
+array: 17710.512242138306
+grid_rows: 4
+grid_cols: 4
+grid_gap: 200.0
+edge_buffer: 1800.0
+inner: 14110.512242138306
+cross_w: 30.0
+cross_arm: 400.0
+n_rows: 2
+n_elec: 8
+d_small: 35.0
+d_large: 500.0
+elec_pitch: 3000.0
+row_space: 3000.0
+elec_y0: 2000.0
+trace_w_small: 10.0
+trace_w_large: 50.0
+fan_y0: 6000.0
+fan_step: 200.0
+margin: 500.0
+pad_gap: 600.0
+pad_h: 4000.0
+min_space: 10.0

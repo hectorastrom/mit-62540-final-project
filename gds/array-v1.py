@@ -25,6 +25,10 @@ GRID_GAP = 200.0  # gap between neighbouring arrays and to the inscribed square'
 _N = max(GRID_ROWS, GRID_COLS)
 ARRAY = (SQUARE - (_N + 1) * GRID_GAP) / _N  # array edge (derived): square space divided into the grid
 N_ARRAYS = GRID_ROWS * GRID_COLS
+EDGE_BUFFER = 1800.0  # clear border on each side of an array (tweezer grip); alignment crosses are centred on its inner corners
+INNER = ARRAY - 2 * EDGE_BUFFER  # design area: must fit inside the four alignment crosses
+CROSS_W = 30.0  # alignment cross line width
+CROSS_ARM = 400.0  # alignment cross half-length (arm length from centre)
 N_ROWS = 2  # electrode rows per array
 N_ELEC = 8  # per array; half small / half large in every row
 D_SMALL = 35.0  # small electrode diameter
@@ -46,13 +50,13 @@ OUTLINE_W = 100.0  # annotation outline line width
 
 
 def make_array(lib, annotate):
-    cell = lib.new_cell("ARRAY")
+    cell = lib.new_cell("DESIGN")
     if annotate:
-        cell.add(gdspy.Rectangle((0, 0), (ARRAY, ARRAY), layer=ANNOTATIONS))
+        cell.add(gdspy.Rectangle((0, 0), (INNER, INNER), layer=ANNOTATIONS))
 
     per_row = N_ELEC // N_ROWS
     span = (per_row - 1) * ELEC_PITCH + (N_ROWS - 1) * ELEC_PITCH / N_ROWS
-    x0 = (ARRAY - span) / 2
+    x0 = (INNER - span) / 2
     # (x, y, diameter)
     elecs = sorted(
         (
@@ -64,9 +68,9 @@ def make_array(lib, annotate):
         for k in range(per_row)
     )
 
-    pitch = (ARRAY - 2 * MARGIN) / N_ELEC
+    pitch = (INNER - 2 * MARGIN) / N_ELEC
     pad_w = pitch - PAD_GAP
-    pad_y1 = ARRAY - MARGIN
+    pad_y1 = INNER - MARGIN
     pad_y0 = pad_y1 - PAD_H
     assert (
         ELEC_PITCH / N_ROWS - D_LARGE / 2 - TRACE_W_LARGE / 2 >= MIN_SPACE
@@ -107,12 +111,27 @@ def make_array(lib, annotate):
     return cell
 
 
+def make_chip(lib, annotate):
+    """Array chip: design cell inset by EDGE_BUFFER, plus alignment crosses at the design area's four corners."""
+    design = make_array(lib, annotate)
+    chip = lib.new_cell("ARRAY")
+    chip.add(gdspy.CellReference(design, (EDGE_BUFFER, EDGE_BUFFER)))
+    if annotate:
+        chip.add(gdspy.Rectangle((0, 0), (ARRAY, ARRAY), layer=ANNOTATIONS))
+    h, a = CROSS_W / 2, CROSS_ARM
+    for cx in (EDGE_BUFFER, ARRAY - EDGE_BUFFER):
+        for cy in (EDGE_BUFFER, ARRAY - EDGE_BUFFER):
+            chip.add(gdspy.Rectangle((cx - a, cy - h), (cx + a, cy + h), layer=METAL))
+            chip.add(gdspy.Rectangle((cx - h, cy - a), (cx + h, cy + a), layer=METAL))
+    return chip
+
+
 def build(annotate, path):
     gdspy.current_library = (
         gdspy.GdsLibrary()
     )  # fresh global library so cell names don't collide
     lib = gdspy.GdsLibrary(unit=1e-6, precision=1e-9)
-    arr = make_array(lib, annotate)
+    arr = make_chip(lib, annotate)
     top = lib.new_cell("WAFER")
     sq0 = (WAFER - SQUARE) / 2  # inscribed square corner (wafer centred at WAFER/2)
     if annotate and FILL_REGIONS:
@@ -168,7 +187,8 @@ def check_rules():
             "ERROR: feature width below %.1f um: %s"
             % (MIN_FEATURE, ", ".join(f"{k}={v:g} um" for k, v in bad.items()))
         )
-    pad_w = (ARRAY - 2 * MARGIN) / N_ELEC - PAD_GAP
+    assert INNER > 0, "edge buffer too large"
+    pad_w = (INNER - 2 * MARGIN) / N_ELEC - PAD_GAP
     if pad_w < MIN_PAD[0] or PAD_H < MIN_PAD[1]:
         print(
             f"WARNING: pad {pad_w:.0f} x {PAD_H:.0f} um is below "
@@ -180,7 +200,7 @@ def check_rules():
 
 def params():
     """Design parameters (the UPPERCASE constants in the parameters section)."""
-    names = ["WAFER_DIAM_IN", "SQUARE", "ARRAY", "GRID_ROWS", "GRID_COLS", "GRID_GAP", "N_ROWS", "N_ELEC", "D_SMALL", "D_LARGE",
+    names = ["WAFER_DIAM_IN", "SQUARE", "ARRAY", "GRID_ROWS", "GRID_COLS", "GRID_GAP", "EDGE_BUFFER", "INNER", "CROSS_W", "CROSS_ARM", "N_ROWS", "N_ELEC", "D_SMALL", "D_LARGE",
              "ELEC_PITCH", "ROW_SPACE", "ELEC_Y0", "TRACE_W_SMALL", "TRACE_W_LARGE",
              "FAN_Y0", "FAN_STEP", "MARGIN", "PAD_GAP", "PAD_H", "MIN_SPACE"]
     return {k: globals()[k] for k in names}
